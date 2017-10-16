@@ -70,11 +70,11 @@ class Connections::Worker
   def run_recv_loop
     loop do
       message, key, response_queue = @recv_queue.deq
-      if key.empty?
-        block.call(message)
-      else
+      if key
         response = yield message
         response_queue << [key, response] rescue nil
+      else
+        yield message
       end
     end
   end

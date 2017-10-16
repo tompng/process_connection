@@ -1,3 +1,16 @@
+class Thread
+  def self.new &block
+    Thread.start do
+      begin
+        block.call
+      rescue => e
+        p e
+        p e.backtrace
+      end
+    end
+  end
+end
+
 require_relative './master'
 require_relative './worker'
 port = ARGV[0].to_i
