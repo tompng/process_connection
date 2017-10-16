@@ -4,11 +4,9 @@ module Connections
   def self.start(master_port = Connections.master_port, &block)
     Worker.start master_port, &block
   end
-  def self.broadcast data
-    Worker.broadcast data
-  end
-  def self.broadcast_with_response data
-    Worker.broadcast_with_response data
+
+  def self.broadcast *args
+    Worker.instance.broadcast *args
   end
 end
 
@@ -59,15 +57,24 @@ class Connections::Worker
     end
   end
 
-  def run_recv_loop &block
+  def inject_data_from_self(data, response: true)
+    if response
+      queue = Queue.new
+      @recv_queue << [data, '_', queue]
+      queue.deq.last
+    else
+      @recv_queue << data
+    end
+  end
+
+  def run_recv_loop
     loop do
-      data, response_queue = @recv_queue.deq
-      key, message = data.chomp.split '/', 2
+      message, key, response_queue = @recv_queue.deq
       if key.empty?
         block.call(message)
       else
-        response = block.call message
-        response_queue << key + '/' + response rescue nil
+        response = yield message
+        response_queue << [key, response] rescue nil
       end
     end
   end
@@ -126,32 +133,34 @@ class Connections::Worker
     queue.close
   end
 
-  def self.broadcast(data)
-    @worker.broadcast data
+  def self.instance
+    @worker
   end
 
-  def broadcast(data)
-    @mutex.synchronize do
-      @connections.each_value do |send_queue|
-        send_queue << data rescue nil
+  def broadcast(data, response: true, include_self: true)
+    if response
+      queues = @mutex.synchronize do
+        @connections.values.map do |send_queue|
+          response_queue = Queue.new
+          send_queue << [data, response_queue]
+          response_queue
+        end
       end
-      @connections.size
-    end
-  end
-
-  def self.broadcast_with_response(data)
-    @worker.broadcast_with_response data
-  end
-
-  def broadcast_with_response(data)
-    queues = @mutex.synchronize do
-      @connections.values.map do |send_queue|
-        response_queue = Queue.new
-        send_queue << [data, response_queue]
-        response_queue
+      response = inject_data_from_self data if include_self
+      responses = queues.map(&:deq).compact
+      responses.unshift response if include_self
+      responses
+    else
+      size = @mutex.synchronize do
+        @connections.each_value do |send_queue|
+          send_queue << data rescue nil
+        end
+        @connections.size
       end
+      return size unless include_self
+      inject_data_from_self data, response: false
+      size + 1
     end
-    queues.map(&:deq).compact
   end
 
   def run
@@ -160,7 +169,8 @@ class Connections::Worker
       Thread.new do
         begin
           while (data = socket.gets)
-            @recv_queue << [data, queue]
+            key, message = data.chomp.split('/', 2)
+            @recv_queue << [message, key, queue]
           end
         ensure
           queue.close
@@ -169,7 +179,7 @@ class Connections::Worker
       end
       Thread.new do
         while (data = queue.deq)
-          socket.puts data
+          socket.puts data.join('/')
         end
       end
     end
