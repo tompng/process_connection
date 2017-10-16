@@ -1,16 +1,19 @@
 require 'socket'
-module Connections
+module ProcessConnection
   def self.start_master
     Master.start
   end
+
   def self.prepare_master
     Master.instance
   end
+
   def self.master_port
     Master.port
   end
 end
-class Connections::Master
+
+class ProcessConnection::Master
   def initialize
     @server = ::TCPServer.new 0
   end

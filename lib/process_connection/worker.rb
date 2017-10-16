@@ -1,16 +1,16 @@
 require 'socket'
 
-module Connections
-  def self.start(master_port = Connections.master_port, &block)
+module ProcessConnection
+  def self.start(master_port = ProcessConnection.master_port, &block)
     Worker.start master_port, &block
   end
 
-  def self.broadcast *args
-    Worker.instance.broadcast *args
+  def self.broadcast(*args)
+    Worker.instance.broadcast(*args)
   end
 end
 
-class Connections::SiblingList
+class ProcessConnection::SiblingList
   def initialize(master_port, worker_port, &block)
     @block = block
     Thread.new { run master_port, worker_port }
@@ -29,10 +29,10 @@ class Connections::SiblingList
 end
 
 
-class Connections::Worker
+class ProcessConnection::Worker
   def self.start(master_port, &block)
     @worker = new
-    Connections::SiblingList.new master_port, @worker.port do |ports|
+    ProcessConnection::SiblingList.new master_port, @worker.port do |ports|
       @worker.update_siblings ports
     end
     @worker.run_recv_loop(&block)
