@@ -4,10 +4,6 @@ module ProcessConnection
     Master.start
   end
 
-  def self.prepare_master
-    Master.instance
-  end
-
   def self.master_port
     Master.port
   end
@@ -50,22 +46,24 @@ class ProcessConnection::Master
         end
       end
     end
-    Socket.accept_loop(@server) do |socket|
-      Thread.new do
-        port = socket.gets.to_i
-        queue = Queue.new
-        workers_queue << [port, queue]
-        begin
-          Thread.new do
-            socket.gets
-            queue.close
+    Thread.new do
+      Socket.accept_loop(@server) do |socket|
+        Thread.new do
+          port = socket.gets.to_i
+          queue = Queue.new
+          workers_queue << [port, queue]
+          begin
+            Thread.new do
+              socket.gets
+              queue.close
+            end
+            while (ports = queue.deq)
+              socket.puts ports.join(',')
+            end
+          ensure
+            workers_queue << [port, nil]
+            socket.close
           end
-          while (ports = queue.deq)
-            socket.puts ports.join(',')
-          end
-        ensure
-          workers_queue << [port, nil]
-          socket.close
         end
       end
     end

@@ -35,7 +35,9 @@ class ProcessConnection::Worker
     ProcessConnection::SiblingList.new master_port, @worker.port do |ports|
       @worker.update_siblings ports
     end
-    @worker.run_recv_loop(&block)
+    Thread.new do
+      @worker.run_recv_loop(&block)
+    end
   end
 
   def initialize
