@@ -1,4 +1,4 @@
-$LOAD_PATH.unshift File.expand_path("../../lib", __FILE__)
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 require "process_connection"
 require "minitest/autorun"
 
@@ -8,7 +8,7 @@ class ProcessConnectionTest < Minitest::Test
   end
 
   def test_fork
-    result = `bundle exec ruby #{File.expand_path 'fork.rb', File.dirname(__FILE__)}`
+    result = `bundle exec ruby #{File.expand_path 'fork.rb', __dir__}`
     expected = [
       'AaBaCa', # broadcast
       3, # response: false
